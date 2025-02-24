@@ -1,11 +1,3 @@
-// Function to detect YouTube's current theme more reliably
-function getYouTubeTheme() {
-    // Check computed background color of body as a fallback
-    const bgColor = window.getComputedStyle(document.body).backgroundColor;
-    const isDark = bgColor.includes('rgb(0, 0, 0)') || bgColor.includes('rgb(33, 33, 33)') || document.documentElement.classList.contains('dark');
-    return isDark ? 'dark' : 'light';
-}
-
 // Add and update style block based on theme
 function updateStyles() {
     let style = document.head.querySelector('#timestamp-styles');
@@ -19,17 +11,19 @@ function updateStyles() {
     style.textContent = `
         .custom-marker {
             position: absolute;
-            width: 4px;
-            height: 250%;
+            width: 3px;
+            height: 28px;
             pointer-events: none;
             transition: opacity 0.2s ease;
+            box-shadow: 1px 1px 6px #191919;
+            top: -15.5px;
         }
         #custom-timestamps {
             padding: 8px;
             border: 1px solid ${isDarkMode ? '#3d3d3d' : '#e0e0e0'};
             margin-bottom: 12px;
             background: ${isDarkMode ? '#212121' : '#fafafa'};
-            font-size:12px
+            font-size: 12px;
             border-radius: 4px;
         }
         #custom-timestamps h4 {
@@ -50,7 +44,7 @@ function updateStyles() {
         #custom-timestamps input[type="number"] {
             width: 80px;
         }
-        #custom-timestamps input[type="text"], #custom-timestamps input[type="url"] {
+        #custom-timestamps input[type="text"] {
             flex: 1;
         }
         #custom-timestamps input[type="color"] {
@@ -72,15 +66,14 @@ function updateStyles() {
             align-items: center;
         }
         #timestampList {
-            font-size : 12px
+            font-size: 12px;
             margin-top: 8px;
         }
         #timestampList > li {
             display: flex;
-            margin : 10px 0px;
             align-items: center;
             gap: 8px;
-            font-size : 12px;
+            font-size: 12px;
             margin-bottom: 6px;
         }
         #timestampList a {
@@ -99,6 +92,28 @@ function updateStyles() {
         }
         #timestampList .timestamp-link:hover {
             text-decoration: underline;
+        }
+        #marker-tooltip {
+            position: absolute;
+            top: -40px; /* Above the progress bar */
+            left: 50%;
+            transform: translateX(-50%);
+            background: ${isDarkMode ? '#333' : '#fff'};
+            color: ${isDarkMode ? '#e0e0e0' : '#333'};
+            padding: 6px 10px;
+            border: 1px solid ${isDarkMode ? '#555' : '#ccc'};
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            z-index: 1001;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            white-space: nowrap;
+            pointer-events: none;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        #marker-tooltip.visible {
+            opacity: 1;
         }
     `;
 }
@@ -154,6 +169,7 @@ function setupTimestampUI() {
         timestampContainer.appendChild(title);
 
         const inputContainer = document.createElement("div");
+
         const timeInput = document.createElement("input");
         timeInput.type = "number";
         timeInput.placeholder = "Time in sec";
@@ -164,33 +180,26 @@ function setupTimestampUI() {
         colorInput.id = "colorPicker";
         colorInput.value = "#ff0000";
 
-        const noteInput = document.createElement("input");
-        noteInput.type = "text";
-        noteInput.placeholder = "Add a note you can edit later...";
-        noteInput.id = "noteInput";
-
-        const linkInput = document.createElement("input");
-        linkInput.type = "url";
-        linkInput.placeholder = "Add a link...";
-        linkInput.id = "linkInput";
+        const headingInput = document.createElement("input");
+        headingInput.type = "text";
+        headingInput.placeholder = "Heading...";
+        headingInput.id = "headingInput";
 
         const saveButton = document.createElement("button");
         saveButton.innerText = "Save Marker";
         saveButton.addEventListener("click", () => {
             const time = parseFloat(timeInput.value);
             const color = colorInput.value;
-            const note = noteInput.value.trim();
-            const link = linkInput.value.trim();
+            const heading = headingInput.value.trim();
 
             if (!isNaN(time)) {
-                saveTimestamp(time, color, note, link);
+                saveTimestamp(time, color, heading, "", []); // Default empty note and array of links
             }
         });
 
         inputContainer.appendChild(timeInput);
         inputContainer.appendChild(colorInput);
-        inputContainer.appendChild(noteInput);
-        inputContainer.appendChild(linkInput);
+        inputContainer.appendChild(headingInput);
         inputContainer.appendChild(saveButton);
         timestampContainer.appendChild(inputContainer);
 
@@ -200,14 +209,14 @@ function setupTimestampUI() {
     updateStyles(); // Ensure styles are applied after UI setup
 }
 
-// Function to save timestamp
-function saveTimestamp(time, color, note, link) {
+// Function to save timestamp (with optional heading, note, and links, defaulting to empty)
+function saveTimestamp(time, color, heading = "", note = "", links = []) {
     const videoId = new URL(window.location.href).searchParams.get("v");
     if (!videoId) return;
 
     chrome.storage.local.get([videoId], (data) => {
         const timestamps = data[videoId] || [];
-        timestamps.push({ time, color, note, link });
+        timestamps.push({ time, color, heading, note, links });
 
         chrome.storage.local.set({ [videoId]: timestamps }, () => {
             addTimestampMarker(time, color);
@@ -216,7 +225,7 @@ function saveTimestamp(time, color, note, link) {
     });
 }
 
-// Function to list saved timestamps with links displayed directly
+// Function to list saved timestamps with headings, notes, and links editable
 function addTimestampsToList() {
     const videoId = new URL(window.location.href).searchParams.get("v");
     if (!videoId) return;
@@ -231,39 +240,58 @@ function addTimestampsToList() {
         const list = document.createElement("ul");
         list.id = "timestampList";
 
-        (data[videoId] || []).forEach(({ time, color, note, link }, index) => {
+        (data[videoId] || []).forEach(({ time, color, heading, note, links }, index) => {
             const item = document.createElement("li");
+            item.style.display = "flex";
+            item.style.justifyContent = "space-between"; // Push elements to left and right extremes
+            item.style.alignItems = "center";
+            item.style.gap = "8px"; // Small gap between groups
+            item.style.marginBottom = "6px";
+            item.style.padding = "4px 0"; // Slight padding for better spacing
 
             const timestampLink = document.createElement("a");
-            timestampLink.href = "#";
-            timestampLink.innerText = `🟢 ${formatTime(time)}`;
+            timestampLink.href = "#"; // Use # to prevent navigation
+            timestampLink.innerText = `\u{1F7E2} ${formatTime(time)}`; // Using Unicode for 🟢
             timestampLink.style.color = color;
-            timestampLink.addEventListener("click", () => {
+            timestampLink.addEventListener("click", (e) => {
+                e.preventDefault(); // Prevent default navigation/reload
                 const video = document.querySelector("video");
-                if (video) video.currentTime = time;
+                if (video) {
+                    video.currentTime = time; // Jump to timestamp without page reload
+                }
             });
+
+            // Right side: Heading, Notes, Links, Delete (extreme right)
+            const rightContainer = document.createElement("div");
+            rightContainer.style.display = "flex";
+            rightContainer.style.alignItems = "center";
+            rightContainer.style.gap = "8px"; // Gap between right-side elements
+
+            const headingElement = document.createElement("strong");
+            headingElement.innerText = heading || "No heading";
+            headingElement.style.color = color;
+            headingElement.style.whiteSpace = "nowrap"; // Prevent heading from wrapping
 
             const noteButton = document.createElement("button");
             noteButton.innerText = "Notes";
-            noteButton.addEventListener("click", () => openNoteEditor(index, note));
+            noteButton.addEventListener("click", () => openNotesEditor(index, note));
+
+            const linksButton = document.createElement("button");
+            linksButton.innerText = "Links";
+            linksButton.addEventListener("click", () => openLinksEditor(index, [...links])); // Pass a copy of links
 
             const deleteButton = document.createElement("button");
             deleteButton.innerText = "🗑️";
             deleteButton.addEventListener("click", () => deleteTimestamp(index));
 
+            // rightContainer.appendChild(headingElement);
+            rightContainer.appendChild(noteButton);
+            rightContainer.appendChild(linksButton);
+            rightContainer.appendChild(deleteButton);
+
             item.appendChild(timestampLink);
-            item.appendChild(noteButton);
-
-            if (link) {
-                const linkElement = document.createElement("a");
-                linkElement.href = link;
-                linkElement.innerText = link.length > 30 ? link.substring(0, 27) + "..." : link;
-                linkElement.classList.add("timestamp-link");
-                linkElement.target = "_blank";
-                item.appendChild(linkElement);
-            }
-
-            item.appendChild(deleteButton);
+            item.appendChild(headingElement);
+            item.appendChild(rightContainer);
             list.appendChild(item);
         });
 
@@ -271,58 +299,270 @@ function addTimestampsToList() {
         updateStyles(); // Ensure styles refresh after list update
     });
 }
+// Function to open a notes editor popup with theme-aware styles (notes only)
+function openNotesEditor(index, currentNote) {
+    const isDarkMode = document.documentElement.getAttribute("dark") !== null;
 
-// Function to open a note editor popup with theme-aware styles
-function openNoteEditor(index, currentNote) {
-    const isDarkMode = getYouTubeTheme() === 'dark';
-    const editor = document.createElement("div");
+    // Check if an editor already exists for this index to reuse or recreate
+    let editor = document.querySelector(`#notes-editor-${index}`);
+    if (editor) {
+        // Update the existing editor with the current note
+        const noteInput = editor.querySelector("textarea");
+        if (noteInput) noteInput.value = currentNote || "";
+        return;
+    }
+
+    // Create new editor if it doesn’t exist
+    editor = document.createElement("div");
+    editor.id = `notes-editor-${index}`; // Unique ID for each timestamp's editor
     editor.style.position = "fixed";
     editor.style.top = "50%";
     editor.style.left = "50%";
     editor.style.transform = "translate(-50%, -50%)";
     editor.style.backgroundColor = isDarkMode ? "#212121" : "#fff";
-    editor.style.padding = "16px";
+    editor.style.padding = "20px";
     editor.style.border = `1px solid ${isDarkMode ? '#3d3d3d' : '#e0e0e0'}`;
-    editor.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)";
+    editor.style.boxShadow = "0 4px 12px rgba(0,0,0,0.2)";
     editor.style.zIndex = "1000";
-    editor.style.borderRadius = "4px";
+    editor.style.borderRadius = "8px";
+    editor.style.width = "320px";
+    editor.style.display = "flex";
+    editor.style.flexDirection = "column";
+    editor.style.alignItems = "center";
+    editor.style.gap = "12px";
 
-    const textarea = document.createElement("textarea");
-    textarea.value = currentNote || "";
-    textarea.style.width = "300px";
-    textarea.style.height = "100px";
-    textarea.style.marginBottom = "8px";
-    textarea.style.border = `1px solid ${isDarkMode ? '#555' : '#ddd'}`;
-    textarea.style.borderRadius = "3px";
-    textarea.style.padding = "4px";
-    textarea.style.fontSize = "12px";
-    textarea.style.background = isDarkMode ? "#333" : "#fff";
-    textarea.style.color = isDarkMode ? "#e0e0e0" : "#333";
+    // Close Button (×) at top right
+    const closeButton = document.createElement("button");
+    closeButton.innerText = "×";
+    closeButton.style.position = "absolute";
+    closeButton.style.top = "10px";
+    closeButton.style.right = "10px";
+    closeButton.style.background = "transparent";
+    closeButton.style.border = "none";
+    closeButton.style.color = isDarkMode ? "#e0e0e0" : "#333";
+    closeButton.style.fontSize = "16px";
+    closeButton.style.cursor = "pointer";
+    closeButton.style.padding = "4px";
+    closeButton.style.transition = "color 0.2s";
+    closeButton.onmouseover = () => closeButton.style.color = isDarkMode ? "#fff" : "#000";
+    closeButton.onmouseleave = () => closeButton.style.color = isDarkMode ? "#e0e0e0" : "#333";
+    closeButton.addEventListener("click", () => {
+        document.body.removeChild(editor);
+    });
+    editor.appendChild(closeButton);
 
+    // Note Input (Textarea) with improved alignment
+    const noteInput = document.createElement("textarea");
+    noteInput.value = currentNote || "";
+    noteInput.style.width = "100%";
+    noteInput.style.minHeight = "120px"; // Slightly taller for better visibility
+    noteInput.style.border = `1px solid ${isDarkMode ? '#555' : '#ccc'}`;
+    noteInput.style.borderRadius = "6px";
+    noteInput.style.padding = "10px"; // Increased padding for better spacing
+    noteInput.style.fontSize = "14px";
+    noteInput.style.background = isDarkMode ? "#333" : "#fff";
+    noteInput.style.color = isDarkMode ? "#e0e0e0" : "#333";
+    noteInput.style.outline = "none";
+    noteInput.style.resize = "vertical"; // Allow vertical resizing only
+    noteInput.style.boxShadow = "inset 0 1px 3px rgba(0,0,0,0.1)";
+    noteInput.style.marginTop = "20px"; // Adjust for close button
+    noteInput.style.lineHeight = "1.5"; // Better readability
+
+    // Save Button
     const saveButton = document.createElement("button");
     saveButton.innerText = "Save";
-    saveButton.style.background = isDarkMode ? "#424242" : "#f5f5f5";
-    saveButton.style.color = isDarkMode ? "#e0e0e0" : "#333";
+    saveButton.style.background = isDarkMode ? "#4CAF50" : "#388E3C";
+    saveButton.style.color = "#fff";
+    saveButton.style.border = "none";
+    saveButton.style.padding = "10px 16px";
+    saveButton.style.borderRadius = "6px";
+    saveButton.style.cursor = "pointer";
+    saveButton.style.fontSize = "14px";
+    saveButton.style.transition = "background 0.2s";
+    saveButton.onmouseover = () => saveButton.style.background = isDarkMode ? "#45A049" : "#2E7D32";
+    saveButton.onmouseleave = () => saveButton.style.background = isDarkMode ? "#4CAF50" : "#388E3C";
+
     saveButton.addEventListener("click", () => {
-        updateNote(index, textarea.value);
+        updateNote(index, noteInput.value);
         document.body.removeChild(editor);
     });
 
-    const cancelButton = document.createElement("button");
-    cancelButton.innerText = "Cancel";
-    cancelButton.style.background = isDarkMode ? "#424242" : "#f5f5f5";
-    cancelButton.style.color = isDarkMode ? "#e0e0e0" : "#333";
-    cancelButton.addEventListener("click", () => {
-        document.body.removeChild(editor);
-    });
-
-    editor.appendChild(textarea);
+    // Append everything
+    editor.appendChild(noteInput);
     editor.appendChild(saveButton);
-    editor.appendChild(cancelButton);
     document.body.appendChild(editor);
 }
 
-// Function to update a note
+
+// Function to open a links editor popup with theme-aware styles (multiple links)
+function openLinksEditor(index, currentLinks) {
+    const isDarkMode = document.documentElement.getAttribute("dark") !== null;
+
+    // Check if an editor already exists for this index to reuse or recreate
+    let editor = document.querySelector(`#links-editor-${index}`);
+    if (editor) {
+        // Update the existing editor with new links
+        updateLinksList(editor, currentLinks);
+        return;
+    }
+
+    // Create new editor if it doesn’t exist
+    editor = document.createElement("div");
+    editor.id = `links-editor-${index}`; // Unique ID for each timestamp's editor
+    editor.style.position = "fixed";
+    editor.style.top = "50%";
+    editor.style.left = "50%";
+    editor.style.transform = "translate(-50%, -50%)";
+    editor.style.backgroundColor = isDarkMode ? "#212121" : "#fff";
+    editor.style.padding = "20px";
+    editor.style.border = `1px solid ${isDarkMode ? '#3d3d3d' : '#e0e0e0'}`;
+    editor.style.boxShadow = "0 4px 12px rgba(0,0,0,0.2)";
+    editor.style.zIndex = "1000";
+    editor.style.borderRadius = "8px";
+    editor.style.width = "320px";
+    editor.style.display = "flex";
+    editor.style.flexDirection = "column";
+    editor.style.alignItems = "center";
+    editor.style.gap = "12px";
+
+    // Close Button (×) at top right
+    const closeButton = document.createElement("button");
+    closeButton.innerText = "×";
+    closeButton.style.position = "absolute";
+    closeButton.style.top = "10px";
+    closeButton.style.right = "10px";
+    closeButton.style.background = "transparent";
+    closeButton.style.border = "none";
+    closeButton.style.color = isDarkMode ? "#e0e0e0" : "#333";
+    closeButton.style.fontSize = "16px";
+    closeButton.style.cursor = "pointer";
+    closeButton.style.padding = "4px";
+    closeButton.style.transition = "color 0.2s";
+    closeButton.onmouseover = () => closeButton.style.color = isDarkMode ? "#fff" : "#000";
+    closeButton.onmouseleave = () => closeButton.style.color = isDarkMode ? "#e0e0e0" : "#333";
+    closeButton.addEventListener("click", () => {
+        document.body.removeChild(editor);
+    });
+    editor.appendChild(closeButton);
+
+    // Links List Container
+    const linksContainer = document.createElement("div");
+    linksContainer.style.width = "100%";
+    linksContainer.style.maxHeight = "200px";
+    linksContainer.style.overflowY = "auto";
+    linksContainer.style.marginTop = "20px"; // Adjust for close button
+
+    // Function to update the links list in the editor
+    function updateLinksList(container, links) {
+        const linksList = container.querySelector("ul") || document.createElement("ul");
+        linksList.style.listStyle = "none";
+        linksList.style.padding = "0";
+        linksList.style.margin = "0";
+        linksList.innerHTML = ""; // Clear existing list
+
+        links.forEach((link, linkIndex) => {
+            const li = document.createElement("li");
+            li.style.display = "flex";
+            li.style.justifyContent = "space-between"; // Space between link and remove button
+            li.style.alignItems = "center";
+            li.style.marginBottom = "8px";
+            li.style.padding = "4px 0"; // Slight padding for better spacing
+
+            const linkText = document.createElement("a");
+            linkText.href = link;
+            linkText.innerText = link.length > 30 ? link.substring(0, 27) + "..." : link;
+            linkText.classList.add("timestamp-link");
+            linkText.target = "_blank";
+            linkText.style.color = isDarkMode ? "#8ab4f8" : "#007BFF";
+            linkText.style.textDecoration = "none";
+            linkText.style.fontSize = "14px";
+            linkText.style.flexGrow = "1"; // Allow link to grow and push remove button to the right
+
+            const removeButton = document.createElement("button");
+            removeButton.innerText = "Remove";
+            removeButton.style.background = isDarkMode ? "#D32F2F" : "#B71C1C";
+            removeButton.style.color = "#fff";
+            removeButton.style.border = "none";
+            removeButton.style.padding = "4px 10px";
+            removeButton.style.borderRadius = "4px";
+            removeButton.style.cursor = "pointer";
+            removeButton.style.fontSize = "12px";
+            removeButton.style.transition = "background 0.2s";
+            removeButton.onmouseover = () => removeButton.style.background = isDarkMode ? "#C62828" : "#9A0007";
+            removeButton.onmouseleave = () => removeButton.style.background = isDarkMode ? "#D32F2F" : "#B71C1C";
+            removeButton.addEventListener("click", () => {
+                links.splice(linkIndex, 1); // Remove only the specific link
+                updateLinksList(linksContainer, links); // Update the list in the current editor
+                updateLinks(index, links); // Automatically save the updated links
+            });
+
+            li.appendChild(linkText);
+            li.appendChild(removeButton);
+            linksList.appendChild(li);
+        });
+
+        if (!container.querySelector("ul")) {
+            container.appendChild(linksList);
+        }
+    }
+
+    // Initial update of links list
+    updateLinksList(linksContainer, currentLinks);
+
+    // New Link Input
+    const newLinkInput = document.createElement("input");
+    newLinkInput.type = "url";
+    newLinkInput.placeholder = "Add a new link...";
+    newLinkInput.style.width = "100%";
+    newLinkInput.style.padding = "6px 8px";
+    newLinkInput.style.border = `1px solid ${isDarkMode ? '#555' : '#ccc'}`;
+    newLinkInput.style.borderRadius = "6px";
+    newLinkInput.style.fontSize = "14px";
+    newLinkInput.style.background = isDarkMode ? "#333" : "#fff";
+    newLinkInput.style.color = isDarkMode ? "#e0e0e0" : "#333";
+    newLinkInput.style.outline = "none";
+
+    // Add Link Button
+    const addLinkButton = document.createElement("button");
+    addLinkButton.innerText = "Add Link";
+    addLinkButton.style.background = isDarkMode ? "#4CAF50" : "#388E3C";
+    addLinkButton.style.color = "#fff";
+    addLinkButton.style.border = "none";
+    addLinkButton.style.padding = "8px 12px";
+    addLinkButton.style.borderRadius = "6px";
+    addLinkButton.style.cursor = "pointer";
+    addLinkButton.style.fontSize = "14px";
+    addLinkButton.style.transition = "background 0.2s";
+    addLinkButton.onmouseover = () => addLinkButton.style.background = isDarkMode ? "#45A049" : "#2E7D32";
+    addLinkButton.onmouseleave = () => addLinkButton.style.background = isDarkMode ? "#4CAF50" : "#388E3C";
+    addLinkButton.addEventListener("click", () => {
+        if (newLinkInput.value.trim()) {
+            currentLinks.push(newLinkInput.value.trim());
+            newLinkInput.value = "";
+            updateLinksList(linksContainer, currentLinks); // Append new link to the existing list
+            updateLinks(index, currentLinks); // Automatically save the updated links
+        }
+    });
+
+    // Append everything
+    editor.appendChild(linksContainer);
+    editor.appendChild(newLinkInput);
+    editor.appendChild(addLinkButton);
+    document.body.appendChild(editor);
+
+    // Alert if no links exist
+    if (currentLinks.length === 0) {
+        const alertDiv = document.createElement("div");
+        alertDiv.innerText = "No links added yet.";
+        alertDiv.style.color = isDarkMode ? "#f44336" : "#d32f2f"; // Red for alert
+        alertDiv.style.fontSize = "12px";
+        alertDiv.style.textAlign = "center";
+        alertDiv.style.marginBottom = "10px";
+        linksContainer.appendChild(alertDiv);
+    }
+}
+
+// Function to update a timestamp's note
 function updateNote(index, newNote) {
     const videoId = new URL(window.location.href).searchParams.get("v");
     if (!videoId) return;
@@ -331,6 +571,22 @@ function updateNote(index, newNote) {
         let timestamps = data[videoId] || [];
         if (index >= 0 && index < timestamps.length) {
             timestamps[index].note = newNote;
+            chrome.storage.local.set({ [videoId]: timestamps }, () => {
+                addTimestampsToList();
+            });
+        }
+    });
+}
+
+// Function to update a timestamp's links
+function updateLinks(index, newLinks) {
+    const videoId = new URL(window.location.href).searchParams.get("v");
+    if (!videoId) return;
+
+    chrome.storage.local.get([videoId], (data) => {
+        let timestamps = data[videoId] || [];
+        if (index >= 0 && index < timestamps.length) {
+            timestamps[index].links = newLinks;
             chrome.storage.local.set({ [videoId]: timestamps }, () => {
                 addTimestampsToList();
             });
@@ -370,7 +626,7 @@ function removeTimestampMarker(time) {
 function formatTime(seconds) {
     const minutes = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
-    return `${minutes}:${secs.toString().padStart(2, "0")}`;
+    return `${minutes}:${secs.toString().padStart(2, "0")}`; // Fixed syntax
 }
 
 // Start observing the document and ensure theme updates
