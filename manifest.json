@@ -1,6 +1,6 @@
 {
     "manifest_version": 3,
-    "name": "YouTube Custom Timestamps",
+    "name": "TimeStamped",
     "version": "1.0",
     "description": "Add custom timestamps with colors to YouTube videos.",
     "permissions": ["storage"],
@@ -10,7 +10,7 @@
     },
     "content_scripts": [
       {
-        "matches": ["https://www.youtube.com/watch*"],
+        "matches": ["https://www.youtube.com/*"],
         "js": ["content.js"]
       }
     ]
