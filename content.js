@@ -185,8 +185,6 @@ function setupTimestampUI() {
             const time = parseFloat(timeInput.value);
             const color = colorInput.value;
             const heading = headingInput.value.trim();
-            timeInput.placeholder = "Time in sec";
-            headingInput.placeholder = "Heading...";
 
             if (!isNaN(time)) {
                 saveTimestamp(time, color, heading, "", []);
@@ -201,7 +199,9 @@ function setupTimestampUI() {
 
         descriptionContainer.prepend(timestampContainer);
     }
+    updateStyles();
 }
+
 
 function removeExistingMarkers() {
     document.querySelectorAll('.custom-marker').forEach(marker => {
@@ -555,6 +555,8 @@ function formatTime(seconds) {
     const secs = Math.floor(seconds % 60);
     return `${minutes}:${secs.toString().padStart(2, "0")}`;
 }
+
+
 function openNotesEditor(index, currentNote) {
     const isDarkMode = document.documentElement.getAttribute("dark") !== null;
 
@@ -571,7 +573,7 @@ function openNotesEditor(index, currentNote) {
                 left: 50%;
                 transform: translate(-50%, -50%);
                 background-color: ${isDarkMode ? '#212121' : '#fff'};
-                padding: 20px;
+                padding: 15px 103px;
                 border: 1px solid ${isDarkMode ? '#3d3d3d' : '#e0e0e0'};
                 box-shadow: 0 4px 12px rgba(0,0,0,0.2);
                 z-index: 1000;
@@ -612,8 +614,8 @@ function openNotesEditor(index, currentNote) {
                 margin-top: 8px;
             }
             #notes-editor-${index} textarea {
-                width: 100%;
-                height: 120px;
+                width: 150%;
+                height: 250px;
                 padding: 6px 8px;
                 border: 1px solid ${isDarkMode ? '#555' : '#ccc'};
                 border-radius: 6px;
@@ -646,14 +648,28 @@ function openNotesEditor(index, currentNote) {
             #notes-editor-${index} button.save:active, #notes-editor-${index} button.generate:active {
                 background: ${isDarkMode ? '#4CAF50' : '#388E3C'};
             }
+            #notes-editor-${index} .loader {
+                border: 4px solid ${isDarkMode ? '#444' : '#f3f3f3'};
+                border-top: 4px solid ${isDarkMode ? '#fff' : '#3498db'};
+                border-radius: 50%;
+                width: 20px;
+                height: 20px;
+                animation: spin 1s linear infinite;
+                margin-top: 14px;
+                display: none;
+            }
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
         </style>
         <button class="close">×</button>
-        <input class="topic-input" type="text" placeholder="Add topic to generate">
+        <input class="topic-input" type="text" placeholder="Add your prompt for notes here...">
         <textarea placeholder="Add your notes here...">${currentNote || ''}</textarea>
         <div class="button-container">
             <button class="save">Save Note</button>
             <button class="generate">Generate</button>
         </div>
+        <div class="loader"></div>
     `;
 
     document.body.appendChild(editor);
@@ -663,6 +679,7 @@ function openNotesEditor(index, currentNote) {
     const generateButton = editor.querySelector('.generate');
     const textarea = editor.querySelector('textarea');
     const topicInput = editor.querySelector('.topic-input');
+    const loader = editor.querySelector('.loader');
 
     closeButton.addEventListener("click", () => {
         editor.remove();
@@ -677,12 +694,55 @@ function openNotesEditor(index, currentNote) {
     generateButton.addEventListener("click", () => {
         const topic = topicInput.value.trim();
         if (topic) {
-            const notes = generateManualNotes(topic);
-            textarea.value = notes;
-            topicInput.value = ""; // Clear the input after generating
+            loader.style.display = "block";
+            textarea.value = ""; 
+            generateGeminiNotes(topic)
+                .then(notes => {
+                    textarea.value = notes;
+                    loader.style.display = "none";
+                    topicInput.value = "";
+                })
+                .catch(error => {
+                    console.error("Error generating notes:", error);
+                    textarea.value = "Failed to generate notes. Please try again.";
+                    loader.style.display = "none"; 
+                    topicInput.value = "";
+                });
         }
     });
 }
+
+
+function generateGeminiNotes(topic) {
+    const GEMINI_API_KEY = "AIzaSyCRO3jpEi5P7UH804JdeP4mcTCE-5pldOo";
+
+    return new Promise((resolve, reject) => {
+        fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + GEMINI_API_KEY, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [{
+                        text: `${topic}, give me plain text response`
+                    }]
+                }]
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.candidates && data.candidates.length > 0) {
+                const notes = data.candidates[0].content.parts[0].text.trim();
+                resolve(notes.split('\n').slice(0, 10).join('\n')); // Ensure exactly 10 lines
+            } else {
+                reject("No response from Gemini API");
+            }
+        })
+        .catch(error => reject(error));
+    });
+}
+
 function runFunctions() {
     console.log("Running functions after navigation or reload...");
     addTimestampsToList();
@@ -707,7 +767,6 @@ if (titleElement) {
 }
 
 window.addEventListener("load", () => {
-    console.log("Page fully reloaded");
     runFunctions();
 });
 
