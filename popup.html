@@ -1,17 +1,152 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <title>Custom Timestamps</title>
+    <title>YTimeStamped</title>
+    <meta charset="UTF-8">
     <style>
         body {
-            width: 200px;
+            width: 300px;
             text-align: center;
-            font-family: Arial, sans-serif;
-            padding: 10px;
+            font-family: 'Arial', 'Twemoji Mozilla', 'Segoe UI Emoji', sans-serif;
+            background-color: #f8f9fa;
+            color: #333;
+            padding: 20px;
+            border-radius: 12px;
+            margin: 0 auto;
+            transition: all 0.3s ease;
+        }
+
+        body:hover {
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+        }
+
+        h2 {
+            font-size: 24px;
+            margin-bottom: 0px;
+            margin-top: -10px;
+            font-weight: 700;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+            position: relative;
+            /* For positioning emojis */
+            padding: 8px 15px;
+            /* Added padding for better spacing */
+            background-color: #ff4136;
+            /* Reddish background for the heading */
+            color: #fff;
+            /* White text for contrast */
+            display: inline-block;
+            /* Ensures background fits content */
+            border-radius: 6px;
+            /* Softer corners for the heading */
+        }
+
+        p {
+            font-size: 15px;
+            margin-bottom: 15px;
+            opacity: 0.9;
+            line-height: 1.6;
+            color: #495057;
+            animation: fadeIn 1s ease-in;
+            font-weight: bolder;
+        }
+
+        .feature-list {
+            text-align: left;
+            font-size: 14px;
+            margin: 15px 0;
+            padding: 0 20px;
+            list-style: none;
+        }
+
+        .feature-list li {
+            margin-bottom: 10px;
+            padding-left: 20px;
+            position: relative;
+            opacity: 0;
+            animation: slideIn 0.5s ease-out forwards;
+            font-weight: bolder ;
+        }
+
+        .feature-list li:nth-child(1) {
+            animation-delay: 0.1s;
+        }
+
+        .feature-list li:nth-child(2) {
+            animation-delay: 0.3s;
+        }
+
+        .feature-list li:nth-child(3) {
+            animation-delay: 0.5s;
+        }
+
+        .feature-list li:nth-child(4) {
+            animation-delay: 0.7s;
+        }
+
+        .feature-list li:nth-child(5) {
+            animation-delay: 0.9s;
+        }
+
+        .feature-list li::before {
+            position: absolute;
+            left: 0;
+            color: #28a745;
+            font-size: 16px;
+        }
+
+        .footer {
+            font-size: 13px;
+            margin-top: 15px;
+            opacity: 0.8;
+            color: #6c757d;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        center{
+            border: 2px solid black;
+            padding: 4px;
+        }
+        .circle{
+            position: fixed;
+            top: 2%;
+            left: 48%;
+            height: 20px;
+            width:  20px;
+            background-color: black;
+            border-radius: 100px;
         }
     </style>
 </head>
+
 <body>
-    <h2>Custom Timestamps</h2>
+    <center>
+        <div class="circle">
+
+        </div>
+        <h2>YTimeStamped</h2>
+        <p>Effortlessly add custom timestamps and AI-generated notes to YouTube videos!</p>
+
+        <ul class="feature-list">
+            <li>1. Save key moments with custom timestamps ⏰</li>
+            <li>2. Unlock AI-powered notes for deeper insights ✨</li>
+            <li>3. Highlight timestamps with vibrant colors 🎨</li>
+            <li>4. Add links related to a video 🔗</li>
+            <li>5. Timestamps persist after refresh 💾</li>
+        </ul>
+
+        <div class="footer">Open a YouTube video to start using <b style="color:black" >YTimeStamped!</b> </div>
+    </center>
 </body>
+
 </html>

@@ -142,13 +142,22 @@ function addTimestampMarker(time, color) {
 function loadSavedMarkers() {
     const videoId = new URL(window.location.href).searchParams.get("v");
     if (!videoId) return;
-    console.log("loading the saved markers ************************************");
-    const data = JSON.parse(localStorage.getItem(videoId) || '[]');
-    data.forEach(({ time, color }) => {
-        addTimestampMarker(time, color);
-    });
-}
+    console.log("Loading saved markers for video ID:", videoId);
 
+    removeExistingMarkers();
+
+    const data = JSON.parse(localStorage.getItem(videoId) || '[]');
+    const video = document.querySelector('video');
+    if (video && !isNaN(video.duration)) {
+        data.forEach(({ time, color, heading }) => {
+            addTimestampMarker(time, color, heading || "No heading");
+        });
+    } else {
+        console.log("Video element not ready or duration invalid, retrying...");
+        // Retry after a short delay if video isn’t ready
+        setTimeout(loadSavedMarkers, 500);
+    }
+}
 function setupTimestampUI() {
     const descriptionContainer = document.getElementById("description-inline-expander");
     if (!descriptionContainer) return;
@@ -164,34 +173,112 @@ function setupTimestampUI() {
 
         const inputContainer = document.createElement("div");
 
-        const timeInput = document.createElement("input");
-        timeInput.type = "number";
-        timeInput.placeholder = "Time in sec";
-        timeInput.id = "timestampInput";
+        // Hours Input
+        const hoursLabel = document.createElement("label");
+        hoursLabel.textContent = "Hours: ";
+        hoursLabel.style.marginRight = "4px";
+        hoursLabel.style.color = document.documentElement.getAttribute("dark") !== null ? '#e0e0e0' : '#333';
+        const hoursInput = document.createElement("input");
+        hoursInput.type = "number";
+        hoursInput.placeholder = "0";
+        hoursInput.id = "hoursInput";
+        hoursInput.style.width = "60px";
+        hoursInput.style.padding = "4px 8px";
+        hoursInput.style.fontSize = "12px";
+        hoursInput.style.border = "1px solid " + (document.documentElement.getAttribute("dark") !== null ? '#555' : '#ddd');
+        hoursInput.style.borderRadius = "3px";
+        hoursInput.style.background = document.documentElement.getAttribute("dark") !== null ? '#333' : '#fff';
+        hoursInput.style.color = document.documentElement.getAttribute("dark") !== null ? '#e0e0e0' : '#333';
+        hoursInput.style.outline = "none";
+        hoursInput.min = "0"; // Prevent negative values
 
+        // Minutes Input
+        const minutesLabel = document.createElement("label");
+        minutesLabel.textContent = "Minutes: ";
+        minutesLabel.style.marginRight = "4px";
+        minutesLabel.style.color = document.documentElement.getAttribute("dark") !== null ? '#e0e0e0' : '#333';
+        const minutesInput = document.createElement("input");
+        minutesInput.type = "number";
+        minutesInput.placeholder = "0";
+        minutesInput.id = "minutesInput";
+        minutesInput.style.width = "60px";
+        minutesInput.style.padding = "4px 8px";
+        minutesInput.style.fontSize = "12px";
+        minutesInput.style.border = "1px solid " + (document.documentElement.getAttribute("dark") !== null ? '#555' : '#ddd');
+        minutesInput.style.borderRadius = "3px";
+        minutesInput.style.background = document.documentElement.getAttribute("dark") !== null ? '#333' : '#fff';
+        minutesInput.style.color = document.documentElement.getAttribute("dark") !== null ? '#e0e0e0' : '#333';
+        minutesInput.style.outline = "none";
+        minutesInput.min = "0"; 
+
+        const secondsLabel = document.createElement("label");
+        secondsLabel.textContent = "Seconds: ";
+        secondsLabel.style.marginRight = "4px";
+        secondsLabel.style.color = document.documentElement.getAttribute("dark") !== null ? '#e0e0e0' : '#333';
+        const secondsInput = document.createElement("input");
+        secondsInput.type = "number";
+        secondsInput.placeholder = "0";
+        secondsInput.id = "secondsInput";
+        secondsInput.style.width = "60px";
+        secondsInput.style.padding = "4px 8px";
+        secondsInput.style.fontSize = "12px";
+        secondsInput.style.border = "1px solid " + (document.documentElement.getAttribute("dark") !== null ? '#555' : '#ddd');
+        secondsInput.style.borderRadius = "3px";
+        secondsInput.style.background = document.documentElement.getAttribute("dark") !== null ? '#333' : '#fff';
+        secondsInput.style.color = document.documentElement.getAttribute("dark") !== null ? '#e0e0e0' : '#333';
+        secondsInput.style.outline = "none";
+        secondsInput.min = "0"; // Prevent negative values
+
+        // Color Input
         const colorInput = document.createElement("input");
         colorInput.type = "color";
         colorInput.id = "colorPicker";
         colorInput.value = "#ff0000";
+        colorInput.style.width = "30px";
+        colorInput.style.height = "24px";
+        colorInput.style.padding = "0";
+        colorInput.style.border = "none";
+        colorInput.style.borderRadius = "3px";
+        colorInput.style.background = "transparent";
 
+        // Heading Input
         const headingInput = document.createElement("input");
         headingInput.type = "text";
         headingInput.placeholder = "Heading...";
         headingInput.id = "headingInput";
+        headingInput.style.flex = "1";
+        headingInput.style.padding = "4px 8px";
+        headingInput.style.fontSize = "12px";
+        headingInput.style.border = "1px solid " + (document.documentElement.getAttribute("dark") !== null ? '#555' : '#ddd');
+        headingInput.style.borderRadius = "3px";
+        headingInput.style.background = document.documentElement.getAttribute("dark") !== null ? '#333' : '#fff';
+        headingInput.style.color = document.documentElement.getAttribute("dark") !== null ? '#e0e0e0' : '#333';
+        headingInput.style.outline = "none";
 
+        // Save Button
         const saveButton = document.createElement("button");
         saveButton.innerText = "Save Marker";
         saveButton.addEventListener("click", () => {
-            const time = parseFloat(timeInput.value);
+            const hours = parseInt(hoursInput.value) || 0; // Default to 0 if empty
+            const minutes = parseInt(minutesInput.value) || 0; // Default to 0 if empty
+            const seconds = parseInt(secondsInput.value) || 0; // Default to 0 if empty
+            const timeInSeconds = (hours * 3600) + (minutes * 60) + seconds; // Convert to seconds
+            
             const color = colorInput.value;
             const heading = headingInput.value.trim();
 
-            if (!isNaN(time)) {
-                saveTimestamp(time, color, heading, "", []);
+            if (!isNaN(timeInSeconds) && timeInSeconds >= 0) {
+                saveTimestamp(timeInSeconds, color, heading, "", []);
             }
         });
 
-        inputContainer.appendChild(timeInput);
+        // Append inputs with labels in a horizontal layout
+        inputContainer.appendChild(hoursLabel);
+        inputContainer.appendChild(hoursInput);
+        inputContainer.appendChild(minutesLabel);
+        inputContainer.appendChild(minutesInput);
+        inputContainer.appendChild(secondsLabel);
+        inputContainer.appendChild(secondsInput);
         inputContainer.appendChild(colorInput);
         inputContainer.appendChild(headingInput);
         inputContainer.appendChild(saveButton);
@@ -205,7 +292,9 @@ function setupTimestampUI() {
 
 function removeExistingMarkers() {
     document.querySelectorAll('.custom-marker').forEach(marker => {
-        marker.remove();
+        if (marker.parentElement) {
+            marker.remove();
+        }
     });
 }
 
@@ -725,7 +814,7 @@ function generateGeminiNotes(topic) {
             body: JSON.stringify({
                 contents: [{
                     parts: [{
-                        text: `${topic}, give me plain text response`
+                        text: `${topic}, give me plain text response, i have to paste this in textarea`
                     }]
                 }]
             })
@@ -751,23 +840,46 @@ function runFunctions() {
     loadSavedMarkers();
 }
 
-window.addEventListener("yt-navigate-finish", () => {
-    console.log("YouTube navigation detected (yt-navigate-finish)");
-    runFunctions();
-});
-
 const titleObserver = new MutationObserver(() => {
     console.log("Title changed, indicating navigation");
     runFunctions();
 });
 
+
+window.addEventListener("yt-navigate-finish", () => {
+    console.log("YouTube navigation detected (yt-navigate-finish)");
+    runFunctions();
+});
+
 const titleElement = document.querySelector("title");
 if (titleElement) {
-    titleObserver.observe(titleElement, { childList: true });
+    titleObserver.observe(titleElement, { childList: true, subtree: true }); // Added subtree for broader changes
 }
 
+// Handle back/forward navigation and page visibility
+window.addEventListener("popstate", () => {
+    console.log("Back/forward navigation detected (popstate)");
+    runFunctions();
+});
+
+window.addEventListener("pageshow", (event) => {
+    console.log("Page show event triggered (pageshow)", event.persisted);
+    if (event.persisted) { // Check if page is restored from cache (back navigation)
+        runFunctions();
+    }
+});
+
+// Ensure markers load on load and visibility changes
 window.addEventListener("load", () => {
     runFunctions();
+    loadSavedMarkers(); // Ensure immediate marker load on page load
+});
+
+document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+        console.log("Document became visible, reloading markers");
+        runFunctions();
+    }
 });
 
 runFunctions();

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YTimeStamped",
-  "version": "1.1",
+  "version": "1.2",
   "description": "Custom timestamps with AI-generated notes for specific sections of YouTube videos.",
   "permissions": ["storage"],
   "host_permissions": ["https://www.youtube.com/*"],
